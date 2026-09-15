@@ -785,7 +785,6 @@
     oscL.connect(panL).connect(toneGain);
     oscR.connect(panR).connect(toneGain);
     toneGain.connect(dryBus);
-    toneGain.connect(convolver);
 
     oscL.start();
     oscR.start();
@@ -808,14 +807,16 @@
       noiseGain = ctx.createGain();
       noiseGain.gain.value = state.noiseVol;
 
-      fx = buildNoiseEffect(ctx);
-
       noiseSource.connect(hpFilter).connect(lpFilter);
-      lpFilter.connect(fx.dryGain);
-      lpFilter.connect(fx.delayNode);
-      fx.effectOut.connect(noiseGain);
+      if (state.effectType !== 'none') {
+        fx = buildNoiseEffect(ctx);
+        lpFilter.connect(fx.dryGain);
+        lpFilter.connect(fx.delayNode);
+        fx.effectOut.connect(noiseGain);
+      } else {
+        lpFilter.connect(noiseGain);
+      }
       noiseGain.connect(dryBus);
-      noiseGain.connect(convolver);
 
       noiseSource.start();
     }
@@ -837,9 +838,39 @@
       dryBus: dryBus,
       wetBus: wetBus,
       convolver: convolver,
-      masterGain: masterGain
+      masterGain: masterGain,
+      reverbToneConnected: false,
+      reverbNoiseConnected: false
     };
+    updateReverbRouting(); // convolver only receives signal once reverb is actually turned up
     return true;
+  }
+
+  // Connects/disconnects tone and noise from the reverb convolver on demand.
+  // Convolution is one of the most CPU-expensive things in this graph, so it
+  // should only run when the reverb send is actually above 0% — not
+  // constantly in the background with its output silenced downstream.
+  function updateReverbRouting() {
+    if (!audio) return;
+    var active = state.reverb > 0;
+
+    if (active !== audio.reverbToneConnected) {
+      if (active) {
+        audio.toneGain.connect(audio.convolver);
+      } else {
+        try { audio.toneGain.disconnect(audio.convolver); } catch (e) {}
+      }
+      audio.reverbToneConnected = active;
+    }
+
+    if (audio.noiseGain && active !== audio.reverbNoiseConnected) {
+      if (active) {
+        audio.noiseGain.connect(audio.convolver);
+      } else {
+        try { audio.noiseGain.disconnect(audio.convolver); } catch (e) {}
+      }
+      audio.reverbNoiseConnected = active;
+    }
   }
 
   // Builds the modulated-delay stage (shared structure for chorus/flanger)
@@ -942,6 +973,8 @@
       audio.effectFeedbackGain.gain.setTargetAtTime(effectiveFeedback(), now, 0.05);
       audio.effectWetGain.gain.setTargetAtTime(effectiveWetAmount(), now, 0.05);
     }
+
+    updateReverbRouting();
   }
 
   // Changing noise type while running requires rebuilding the noise chain only
@@ -964,6 +997,7 @@
       audio.hpFilter = null;
       audio.lpFilter = null;
       audio.noiseGain = null;
+      audio.reverbNoiseConnected = false;
       audio.effectDelay = null;
       audio.effectLfo = null;
       audio.effectLfoDepthGain = null;
@@ -987,26 +1021,32 @@
       var noiseGain = ctx.createGain();
       noiseGain.gain.value = state.noiseVol;
 
-      var fx = buildNoiseEffect(ctx);
-
+      var fx = null;
       noiseSource.connect(hpFilter).connect(lpFilter);
-      lpFilter.connect(fx.dryGain);
-      lpFilter.connect(fx.delayNode);
-      fx.effectOut.connect(noiseGain);
+      if (state.effectType !== 'none') {
+        fx = buildNoiseEffect(ctx);
+        lpFilter.connect(fx.dryGain);
+        lpFilter.connect(fx.delayNode);
+        fx.effectOut.connect(noiseGain);
+      } else {
+        lpFilter.connect(noiseGain);
+      }
       noiseGain.connect(audio.dryBus);
-      noiseGain.connect(audio.convolver);
       noiseSource.start();
 
       audio.noiseSource = noiseSource;
       audio.hpFilter = hpFilter;
       audio.lpFilter = lpFilter;
       audio.noiseGain = noiseGain;
-      audio.effectDelay = fx.delayNode;
-      audio.effectLfo = fx.lfo;
-      audio.effectLfoDepthGain = fx.lfoDepthGain;
-      audio.effectFeedbackGain = fx.feedbackGain;
-      audio.effectWetGain = fx.wetGain;
+      audio.effectDelay = fx ? fx.delayNode : null;
+      audio.effectLfo = fx ? fx.lfo : null;
+      audio.effectLfoDepthGain = fx ? fx.lfoDepthGain : null;
+      audio.effectFeedbackGain = fx ? fx.feedbackGain : null;
+      audio.effectWetGain = fx ? fx.wetGain : null;
+      audio.reverbNoiseConnected = false; // fresh node, not yet wired to the convolver
     }
+
+    updateReverbRouting();
   }
 
   // ---- Timer / session status ----
@@ -1073,6 +1113,21 @@
   }
 
   // ---- Wire up controls ----
+  // Mode switches can flip whether the noise chain's effect stage should
+  // exist at all (effectiveEffectType() depends on state.mode). Only pay
+  // for a full rebuild when that actually changes; otherwise a plain
+  // parameter update is enough.
+  function syncNoiseEffectChain() {
+    if (!audio) return;
+    var shouldHaveEffect = state.noiseType !== 'none' && effectiveEffectType() !== 'none';
+    var hasEffect = !!audio.effectDelay;
+    if (shouldHaveEffect !== hasEffect) {
+      rebuildNoiseChain();
+    } else {
+      applyLiveParams();
+    }
+  }
+
   el.btnModeSimple.addEventListener('click', function () {
     state.mode = 'simple';
     el.btnModeSimple.classList.add('active');
@@ -1081,7 +1136,7 @@
     el.btnModeAdvanced.setAttribute('aria-pressed', 'false');
     el.panelSimple.classList.remove('panel-hidden');
     el.panelAdvanced.classList.add('panel-hidden');
-    applyLiveParams();
+    syncNoiseEffectChain();
   });
 
   el.btnModeAdvanced.addEventListener('click', function () {
@@ -1092,7 +1147,7 @@
     el.btnModeSimple.setAttribute('aria-pressed', 'false');
     el.panelAdvanced.classList.remove('panel-hidden');
     el.panelSimple.classList.add('panel-hidden');
-    applyLiveParams();
+    syncNoiseEffectChain();
   });
 
   el.bandRow.addEventListener('click', function (evt) {
@@ -1151,7 +1206,11 @@
     } else {
       el.effectDetails.classList.remove('panel-hidden');
     }
-    applyLiveParams();
+    // Switching to/from 'none' changes the graph itself (the whole delay/LFO/
+    // feedback stage is only built when an effect is actually selected — see
+    // startAudio/rebuildNoiseChain), so this needs a rebuild, not just a
+    // value update.
+    rebuildNoiseChain();
   });
 
   el.effectRateSlider.addEventListener('input', function () {
