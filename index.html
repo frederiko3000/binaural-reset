@@ -153,6 +153,56 @@
     outline-offset: 2px;
   }
 
+  .info-details {
+    margin-top: 24px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--surface);
+  }
+
+  .info-details summary {
+    cursor: pointer;
+    padding: 10px 14px;
+    font-family: 'Plex Mono', monospace;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    list-style: none;
+  }
+
+  .info-details summary::-webkit-details-marker { display: none; }
+
+  .info-details summary::before {
+    content: '+ ';
+    color: var(--accent);
+  }
+
+  .info-details[open] summary::before {
+    content: '– ';
+  }
+
+  .info-details .info-body {
+    padding: 0 14px 14px;
+    font-family: 'Plex Mono', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-muted);
+  }
+
+  .info-details .info-body p {
+    margin: 0 0 10px;
+  }
+
+  .info-details .info-body ul {
+    margin: 0 0 10px;
+    padding-left: 18px;
+  }
+
+  .info-details .info-body li {
+    margin-bottom: 4px;
+  }
+
   section.panel {
     margin-bottom: 22px;
   }
@@ -372,7 +422,7 @@
   <!-- SIMPLE PANEL -->
   <section class="panel" id="panelSimple">
     <div class="field">
-      <div class="field-label"><span>Band</span></div>
+      <div class="field-label"><span>Frekvensband</span></div>
       <div class="seg-row" id="bandRow">
         <button class="seg-btn" aria-pressed="false" data-band="delta">Delta</button>
         <button class="seg-btn active" aria-pressed="true" data-band="theta">Theta</button>
@@ -503,14 +553,27 @@
   <button class="start-btn" id="startBtn"><span class="power-led"></span><span id="startBtnLabel">STARTA</span></button>
   <div class="timer-status" id="timerStatus" aria-live="polite"></div>
 
+  <hr class="divider">
+
   <div class="headphone-note">
     <div class="dot"></div>
     <div>Hörlurar krävs. Binaurala beats skapas genom att en något olika ton spelas i vardera örat. Med högtalare når båda tonerna normalt båda öronen, så den binaurala effekten uppstår inte på samma sätt.</div>
   </div>
-  <div class="headphone-note">
-    <div class="dot"></div>
-    <div>Bandnamnen (delta/theta/alpha/beta/gamma) beskriver frekvensintervall, inte medicinska eller psykologiska effekter.</div>
-  </div>
+
+  <details class="info-details">
+    <summary>Vad sägs det om frekvensbanden?</summary>
+    <div class="info-body">
+      <p>Frekvensbanden delta/theta/alpha/beta/gamma beskriver frekvensintervall, inte medicinska eller psykologiska effekter. Namnen är lånade från EEG-forskning, där de beskriver olika frekvensband i naturlig hjärnaktivitet. Inom binaural beats-kulturen har varje band ändå fått ett eget rykte:</p>
+      <ul>
+        <li>Delta: djup, drömlös sömn</li>
+        <li>Theta: meditation, kreativitet, "flow"</li>
+        <li>Alpha: lugn men vaken koncentration</li>
+        <li>Beta: skärpt fokus, vardagsalerthet</li>
+        <li>Gamma: insikt, "aha-upplevelser"</li>
+      </ul>
+      <p>Det finns ingen stark vetenskaplig grund för att lyssna på en viss beat-frekvens faktiskt framkallar motsvarande hjärntillstånd. Se det som ett sätt att ge en session en känsla och en riktning, inte som en medicinskt verifierad effekt.</p>
+    </div>
+  </details>
 </main>
 
 <script>
