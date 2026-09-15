@@ -198,6 +198,11 @@
     background: var(--accent-dim);
   }
 
+  .headphone-note.note-warn {
+    border-color: var(--warn);
+    color: var(--text);
+  }
+
   .divider {
     border: none;
     border-top: 1px solid var(--line);
@@ -389,8 +394,8 @@
   </div>
 
   <div class="field">
-    <div class="field-label"><span>Tonvolym</span><span class="value"><span id="toneVolVal">70</span>%</span></div>
-    <input type="range" id="toneVolSlider" min="0" max="100" step="1" value="70">
+    <div class="field-label"><span>Tonvolym</span><span class="value"><span id="toneVolVal">60</span>%</span></div>
+    <input type="range" id="toneVolSlider" min="0" max="100" step="1" value="60">
   </div>
 
   <div class="field">
@@ -399,8 +404,8 @@
   </div>
 
   <div class="field">
-    <div class="field-label"><span>Huvudvolym</span><span class="value"><span id="masterVolVal">80</span>%</span></div>
-    <input type="range" id="masterVolSlider" min="0" max="100" step="1" value="80">
+    <div class="field-label"><span>Huvudvolym</span><span class="value"><span id="masterVolVal">60</span>%</span></div>
+    <input type="range" id="masterVolSlider" min="0" max="100" step="1" value="60">
   </div>
 
   <div class="field">
@@ -416,6 +421,11 @@
   </div>
 
   <hr class="divider">
+
+  <div class="headphone-note note-warn">
+    <div class="dot"></div>
+    <div><strong>Börja på låg fysisk volym på din enhet.</strong> Signalen kan bli hög även om den inte klipper digitalt — höj gradvis istället för att testa vid full volym direkt.</div>
+  </div>
 
   <button class="start-btn" id="startBtn">Starta</button>
   <div class="timer-status" id="timerStatus" aria-live="polite"></div>
@@ -433,6 +443,13 @@
 <script>
 (function () {
   'use strict';
+
+  // Master volume max is intentionally reduced from unity gain by
+  // MASTER_HEADROOM_DB, since 100% previously meant "as loud as the graph
+  // can physically get" with no margin at all beyond the anti-clipping
+  // limiter. gain = 10^(dB/20).
+  var MASTER_HEADROOM_DB = -10;
+  var MASTER_HEADROOM_GAIN = Math.pow(10, MASTER_HEADROOM_DB / 20); // ≈ 0.316
 
   // ---- Band presets: [beatHz, carrierHz] ----
   var BAND_PRESETS = {
@@ -458,9 +475,9 @@
     effectFeedback: 0.3,
     effectAmount: 0.5,
     reverb: 0,
-    toneVol: 0.7,
+    toneVol: 0.6, // slider default is 60%, unscaled — the safety margin lives in masterVol
     noiseVol: 0.025, // slider default is 5%, scaled by the same 0.5 factor as the live handler
-    masterVol: 0.8,
+    masterVol: 0.6 * MASTER_HEADROOM_GAIN, // slider default is 60%, scaled by MASTER_HEADROOM_GAIN
     timerMins: 0,
     running: false
   };
@@ -471,7 +488,11 @@
   var stopTimeoutId = null;
   var statusIntervalId = null;
   var sessionEndTime = null;
-  var cleanupTimeoutId = null; // tracks stopAudio()'s post-fade cleanup, separate from the timer's own fade/stop scheduling
+  var cleanupTimeoutId = null; // tracks stopAudio()'s post-fade cleanup, separate from the timer's own fade/stop scheduling.
+                                // Intentionally NOT cleared by clearTimers() — it must always run to
+                                // completion to close its specific AudioContext (see targetAudio in
+                                // stopAudio), even if a new session starts in the meantime. Cancelling
+                                // it early would leak that AudioContext instead of closing it.
 
   // ---- DOM refs ----
   var el = {
@@ -920,6 +941,7 @@
     if (stopTimeoutId) { clearTimeout(stopTimeoutId); stopTimeoutId = null; }
     if (statusIntervalId) { clearInterval(statusIntervalId); statusIntervalId = null; }
     sessionEndTime = null;
+    // cleanupTimeoutId is deliberately not touched here — see its declaration above.
   }
 
   function scheduleTimer() {
@@ -1127,7 +1149,9 @@
   });
 
   el.masterVolSlider.addEventListener('input', function () {
-    state.masterVol = parseFloat(el.masterVolSlider.value) / 100;
+    // 100% on the slider maps to MASTER_HEADROOM_DB below the old
+    // unscaled max, not to full gain — see the constant above for the math.
+    state.masterVol = (parseFloat(el.masterVolSlider.value) / 100) * MASTER_HEADROOM_GAIN;
     el.masterVolVal.textContent = el.masterVolSlider.value;
     applyLiveParams();
   });
