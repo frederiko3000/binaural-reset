@@ -1,0 +1,1159 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>binaural.reset</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src 'self'; base-uri 'none'; form-action 'none';">
+<style>
+  :root {
+    --bg: #14151A;
+    --surface: #1B1D24;
+    --surface-2: #22242D;
+    --line: #2E313C;
+    --text: #E8E6E1;
+    --text-muted: #8B8D96;
+    --accent: #4FB8A6;
+    --accent-dim: #2F5E56;
+    --warn: #E8A54B;
+    --focus: #7FD8C7;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 32px 18px 60px;
+  }
+
+  main {
+    width: 100%;
+    max-width: 460px;
+  }
+
+  .wordmark {
+    font-size: 14px;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    margin-bottom: 28px;
+  }
+
+  .wordmark span { color: var(--accent); }
+
+  /* Hero readout */
+  .hero {
+    text-align: center;
+    padding: 28px 0 32px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 24px;
+  }
+
+  .hero .beat-value {
+    font-family: ui-serif, Georgia, 'Times New Roman', serif;
+    font-weight: 500;
+    font-size: 74px;
+    line-height: 1;
+    letter-spacing: -0.01em;
+  }
+
+  .hero .beat-unit {
+    font-family: ui-serif, Georgia, 'Times New Roman', serif;
+    font-size: 28px;
+    color: var(--text-muted);
+    margin-left: 6px;
+  }
+
+  .hero .band-line {
+    margin-top: 10px;
+    font-size: 15px;
+    color: var(--text-muted);
+  }
+
+  .hero .band-line strong {
+    color: var(--accent);
+    font-weight: 500;
+  }
+
+  /* Mode toggle */
+  .mode-toggle {
+    display: flex;
+    background: var(--surface);
+    border-radius: 10px;
+    padding: 4px;
+    margin-bottom: 24px;
+    border: 1px solid var(--line);
+  }
+
+  .mode-toggle button {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-family: inherit;
+    font-size: 14px;
+    padding: 10px 0;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+
+  .mode-toggle button.active {
+    background: var(--surface-2);
+    color: var(--text);
+  }
+
+  .mode-toggle button:focus-visible,
+  button:focus-visible,
+  input:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  section.panel {
+    margin-bottom: 22px;
+  }
+
+  .panel-hidden { display: none; }
+
+  .field-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+  }
+
+  .field-label .value {
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .field { margin-bottom: 18px; }
+
+  input[type="range"] {
+    width: 100%;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    background: var(--line);
+    border-radius: 2px;
+    outline: none;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: none;
+  }
+
+  input[type="range"]::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: none;
+  }
+
+  /* Segmented button rows (bands, noise type, timer) */
+  .seg-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .seg-btn {
+    flex: 1 1 auto;
+    min-width: 58px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    color: var(--text-muted);
+    font-family: inherit;
+    font-size: 13px;
+    padding: 9px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+  }
+
+  .seg-btn.active {
+    border-color: var(--accent);
+    color: var(--text);
+    background: var(--accent-dim);
+  }
+
+  .divider {
+    border: none;
+    border-top: 1px solid var(--line);
+    margin: 24px 0;
+  }
+
+  /* Start button */
+  .start-btn {
+    width: 100%;
+    background: var(--accent);
+    color: #10231F;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-weight: 600;
+    font-size: 16px;
+    border: none;
+    border-radius: 10px;
+    padding: 16px 0;
+    cursor: pointer;
+    transition: opacity 0.15s ease;
+  }
+
+  .start-btn.running {
+    background: var(--surface-2);
+    color: var(--text);
+    border: 1px solid var(--line);
+  }
+
+  .start-btn:active { opacity: 0.85; }
+
+  .timer-status {
+    text-align: center;
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-top: 12px;
+    min-height: 18px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .headphone-note {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-top: 24px;
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+
+  .headphone-note .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--warn);
+    margin-top: 6px;
+    flex-shrink: 0;
+  }
+
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+
+  input[type="number"] {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 13px;
+    padding: 8px 10px;
+    border-radius: 7px;
+  }
+</style>
+</head>
+<body>
+<main>
+  <div class="wordmark">binaural<span>.</span>reset</div>
+
+  <div class="hero">
+    <div><span class="beat-value" id="heroBeat">6.0</span><span class="beat-unit">Hz</span></div>
+    <div class="band-line"><strong id="heroBand">theta</strong> · bärvåg <span id="heroCarrier">100</span> Hz</div>
+  </div>
+
+  <div class="mode-toggle">
+    <button id="btnModeSimple" class="active" aria-pressed="true">Enkel</button>
+    <button id="btnModeAdvanced" aria-pressed="false">Avancerad</button>
+  </div>
+
+  <!-- SIMPLE PANEL -->
+  <section class="panel" id="panelSimple">
+    <div class="field">
+      <div class="field-label"><span>Band</span></div>
+      <div class="seg-row" id="bandRow">
+        <button class="seg-btn" aria-pressed="false" data-band="delta">Delta</button>
+        <button class="seg-btn active" aria-pressed="true" data-band="theta">Theta</button>
+        <button class="seg-btn" aria-pressed="false" data-band="alpha">Alpha</button>
+        <button class="seg-btn" aria-pressed="false" data-band="beta">Beta</button>
+        <button class="seg-btn" aria-pressed="false" data-band="gamma">Gamma</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <div class="field-label"><span>Brus</span></div>
+      <div class="seg-row" id="noiseRowSimple">
+        <button class="seg-btn active" aria-pressed="true" data-noise="none">Inget</button>
+        <button class="seg-btn" aria-pressed="false" data-noise="white">Vitt</button>
+        <button class="seg-btn" aria-pressed="false" data-noise="pink">Rosa</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ADVANCED PANEL -->
+  <section class="panel panel-hidden" id="panelAdvanced">
+    <div class="two-col">
+      <div class="field">
+        <div class="field-label"><span>Bärvåg</span><span class="value"><span id="carrierVal">100</span> Hz</span></div>
+        <input type="range" id="carrierSlider" min="50" max="600" step="1" value="100">
+      </div>
+      <div class="field">
+        <div class="field-label"><span>Beat</span><span class="value"><span id="beatVal">6.0</span> Hz</span></div>
+        <input type="range" id="beatSlider" min="0.5" max="40" step="0.1" value="6">
+      </div>
+    </div>
+
+    <div class="field">
+      <div class="field-label"><span>Brus</span></div>
+      <div class="seg-row" id="noiseRowAdvanced">
+        <button class="seg-btn active" aria-pressed="true" data-noise="none">Inget</button>
+        <button class="seg-btn" aria-pressed="false" data-noise="white">Vitt</button>
+        <button class="seg-btn" aria-pressed="false" data-noise="pink">Rosa</button>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div class="field">
+        <div class="field-label"><span>Högpass</span><span class="value"><span id="hpVal">20</span> Hz</span></div>
+        <input type="range" id="hpSlider" min="20" max="2000" step="10" value="20">
+      </div>
+      <div class="field">
+        <div class="field-label"><span>Lågpass</span><span class="value"><span id="lpVal">20000</span> Hz</span></div>
+        <input type="range" id="lpSlider" min="200" max="20000" step="10" value="20000">
+      </div>
+    </div>
+
+    <div class="field">
+      <div class="field-label"><span>Effekt (brus)</span></div>
+      <div class="seg-row" id="effectRow">
+        <button class="seg-btn active" aria-pressed="true" data-effect="none">Ingen</button>
+        <button class="seg-btn" aria-pressed="false" data-effect="chorus">Chorus</button>
+        <button class="seg-btn" aria-pressed="false" data-effect="flanger">Flanger</button>
+      </div>
+    </div>
+
+    <div id="effectDetails" class="panel-hidden">
+      <div class="two-col">
+        <div class="field">
+          <div class="field-label"><span>Hastighet</span><span class="value"><span id="effectRateVal">0.5</span> Hz</span></div>
+          <input type="range" id="effectRateSlider" min="0.05" max="5" step="0.05" value="0.5">
+        </div>
+        <div class="field">
+          <div class="field-label"><span>Djup</span><span class="value"><span id="effectDepthVal">50</span>%</span></div>
+          <input type="range" id="effectDepthSlider" min="0" max="100" step="1" value="50">
+        </div>
+      </div>
+      <div class="two-col">
+        <div class="field">
+          <div class="field-label"><span>Feedback</span><span class="value"><span id="effectFeedbackVal">30</span>%</span></div>
+          <input type="range" id="effectFeedbackSlider" min="0" max="90" step="1" value="30">
+        </div>
+        <div class="field">
+          <div class="field-label"><span>Mängd</span><span class="value"><span id="effectAmountVal">50</span>%</span></div>
+          <input type="range" id="effectAmountSlider" min="0" max="100" step="1" value="50">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- SHARED CONTROLS -->
+  <div class="field">
+    <div class="field-label"><span>Rymd (reverb)</span><span class="value"><span id="reverbVal">0</span>%</span></div>
+    <input type="range" id="reverbSlider" min="0" max="100" step="1" value="0">
+  </div>
+
+  <div class="field">
+    <div class="field-label"><span>Tonvolym</span><span class="value"><span id="toneVolVal">70</span>%</span></div>
+    <input type="range" id="toneVolSlider" min="0" max="100" step="1" value="70">
+  </div>
+
+  <div class="field">
+    <div class="field-label"><span>Brusvolym</span><span class="value"><span id="noiseVolVal">5</span>%</span></div>
+    <input type="range" id="noiseVolSlider" min="0" max="100" step="1" value="5">
+  </div>
+
+  <div class="field">
+    <div class="field-label"><span>Huvudvolym</span><span class="value"><span id="masterVolVal">80</span>%</span></div>
+    <input type="range" id="masterVolSlider" min="0" max="100" step="1" value="80">
+  </div>
+
+  <div class="field">
+    <div class="field-label"><span>Timer</span></div>
+    <div class="seg-row" id="timerRow">
+      <button class="seg-btn active" aria-pressed="true" data-mins="0">Av</button>
+      <button class="seg-btn" aria-pressed="false" data-mins="5">5 min</button>
+      <button class="seg-btn" aria-pressed="false" data-mins="10">10 min</button>
+      <button class="seg-btn" aria-pressed="false" data-mins="15">15 min</button>
+      <button class="seg-btn" aria-pressed="false" data-mins="20">20 min</button>
+      <button class="seg-btn" aria-pressed="false" data-mins="30">30 min</button>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <button class="start-btn" id="startBtn">Starta</button>
+  <div class="timer-status" id="timerStatus" aria-live="polite"></div>
+
+  <div class="headphone-note">
+    <div class="dot"></div>
+    <div>Hörlurar krävs. Binaurala beats skapas genom att en något olika ton spelas i vardera örat. Med högtalare når båda tonerna normalt båda öronen, så den binaurala effekten uppstår inte på samma sätt.</div>
+  </div>
+  <div class="headphone-note">
+    <div class="dot"></div>
+    <div>Bandnamnen (delta/theta/alpha/beta/gamma) beskriver frekvensintervall, inte medicinska eller psykologiska effekter.</div>
+  </div>
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  // ---- Band presets: [beatHz, carrierHz] ----
+  var BAND_PRESETS = {
+    delta: { beat: 2,  carrier: 90,  label: 'delta' },
+    theta: { beat: 6,  carrier: 100, label: 'theta' },
+    alpha: { beat: 10, carrier: 150, label: 'alpha' },
+    beta:  { beat: 20, carrier: 200, label: 'beta' },
+    gamma: { beat: 40, carrier: 250, label: 'gamma' }
+  };
+
+  // ---- State ----
+  var state = {
+    mode: 'simple',
+    band: 'theta',
+    carrier: 100,
+    beat: 6,
+    noiseType: 'none',
+    hp: 20,
+    lp: 20000,
+    effectType: 'none',
+    effectRate: 0.5,
+    effectDepth: 0.5,
+    effectFeedback: 0.3,
+    effectAmount: 0.5,
+    reverb: 0,
+    toneVol: 0.7,
+    noiseVol: 0.025, // slider default is 5%, scaled by the same 0.5 factor as the live handler
+    masterVol: 0.8,
+    timerMins: 0,
+    running: false
+  };
+
+  // ---- Audio graph (created lazily on first start) ----
+  var audio = null; // holds the active Web Audio graph nodes once started — see startAudio() and buildNoiseEffect()
+  var fadeTimeoutId = null;
+  var stopTimeoutId = null;
+  var statusIntervalId = null;
+  var sessionEndTime = null;
+  var cleanupTimeoutId = null; // tracks stopAudio()'s post-fade cleanup, separate from the timer's own fade/stop scheduling
+
+  // ---- DOM refs ----
+  var el = {
+    heroBeat: document.getElementById('heroBeat'),
+    heroBand: document.getElementById('heroBand'),
+    heroCarrier: document.getElementById('heroCarrier'),
+    btnModeSimple: document.getElementById('btnModeSimple'),
+    btnModeAdvanced: document.getElementById('btnModeAdvanced'),
+    panelSimple: document.getElementById('panelSimple'),
+    panelAdvanced: document.getElementById('panelAdvanced'),
+    bandRow: document.getElementById('bandRow'),
+    noiseRowSimple: document.getElementById('noiseRowSimple'),
+    noiseRowAdvanced: document.getElementById('noiseRowAdvanced'),
+    carrierSlider: document.getElementById('carrierSlider'),
+    carrierVal: document.getElementById('carrierVal'),
+    beatSlider: document.getElementById('beatSlider'),
+    beatVal: document.getElementById('beatVal'),
+    hpSlider: document.getElementById('hpSlider'),
+    hpVal: document.getElementById('hpVal'),
+    lpSlider: document.getElementById('lpSlider'),
+    lpVal: document.getElementById('lpVal'),
+    effectRow: document.getElementById('effectRow'),
+    effectDetails: document.getElementById('effectDetails'),
+    effectRateSlider: document.getElementById('effectRateSlider'),
+    effectRateVal: document.getElementById('effectRateVal'),
+    effectDepthSlider: document.getElementById('effectDepthSlider'),
+    effectDepthVal: document.getElementById('effectDepthVal'),
+    effectFeedbackSlider: document.getElementById('effectFeedbackSlider'),
+    effectFeedbackVal: document.getElementById('effectFeedbackVal'),
+    effectAmountSlider: document.getElementById('effectAmountSlider'),
+    effectAmountVal: document.getElementById('effectAmountVal'),
+    reverbSlider: document.getElementById('reverbSlider'),
+    reverbVal: document.getElementById('reverbVal'),
+    toneVolSlider: document.getElementById('toneVolSlider'),
+    toneVolVal: document.getElementById('toneVolVal'),
+    noiseVolSlider: document.getElementById('noiseVolSlider'),
+    noiseVolVal: document.getElementById('noiseVolVal'),
+    masterVolSlider: document.getElementById('masterVolSlider'),
+    masterVolVal: document.getElementById('masterVolVal'),
+    timerRow: document.getElementById('timerRow'),
+    startBtn: document.getElementById('startBtn'),
+    timerStatus: document.getElementById('timerStatus')
+  };
+
+  // ---- Helpers ----
+  // Highpass/lowpass sliders live in the Advanced panel only. In Simple mode
+  // the noise chain should be effectively unfiltered (full white/pink
+  // spectrum), regardless of whatever the sliders happen to be set to.
+  function effectiveHp() {
+    return state.mode === 'advanced' ? state.hp : 20;
+  }
+  function effectiveLp() {
+    return state.mode === 'advanced' ? state.lp : 20000;
+  }
+
+  // Chorus and flanger are the same modulated-delay structure with different
+  // base delay / max modulation depth. In Simple mode there is no noise
+  // effect at all, so treat it as 'none' regardless of stored slider values.
+  function effectiveEffectType() {
+    return state.mode === 'advanced' ? state.effectType : 'none';
+  }
+  function effectBaseDelaySec() {
+    return effectiveEffectType() === 'flanger' ? 0.004 : 0.022;
+  }
+  function effectMaxDepthSec() {
+    return effectiveEffectType() === 'flanger' ? 0.003 : 0.015;
+  }
+  function effectiveFeedback() {
+    return effectiveEffectType() === 'none' ? 0 : state.effectFeedback;
+  }
+  function effectiveWetAmount() {
+    return effectiveEffectType() === 'none' ? 0 : state.effectAmount;
+  }
+
+  function bandLabelForBeat(hz) {
+    if (hz < 4) return 'delta';
+    if (hz < 8) return 'theta';
+    if (hz < 13) return 'alpha';
+    if (hz < 30) return 'beta';
+    return 'gamma';
+  }
+
+  function updateHero() {
+    el.heroBeat.textContent = state.beat.toFixed(1);
+    el.heroCarrier.textContent = Math.round(state.carrier);
+    el.heroBand.textContent = bandLabelForBeat(state.beat);
+  }
+
+  function formatTime(totalSeconds) {
+    var m = Math.floor(totalSeconds / 60);
+    var s = Math.floor(totalSeconds % 60);
+    return m + ':' + (s < 10 ? '0' : '') + s;
+  }
+
+  function setActiveSeg(row, matchAttr, value) {
+    var buttons = row.querySelectorAll('.seg-btn');
+    for (var i = 0; i < buttons.length; i++) {
+      var b = buttons[i];
+      if (b.getAttribute(matchAttr) === String(value)) {
+        b.classList.add('active');
+        b.setAttribute('aria-pressed', 'true');
+      } else {
+        b.classList.remove('active');
+        b.setAttribute('aria-pressed', 'false');
+      }
+    }
+  }
+
+  // ---- Noise buffer generation ----
+  function createNoiseBuffer(ctx, type, durationSeconds) {
+    var bufferSize = Math.floor(ctx.sampleRate * durationSeconds);
+    var buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    var data = buffer.getChannelData(0);
+
+    if (type === 'pink') {
+      var b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+      for (var i = 0; i < bufferSize; i++) {
+        var white = Math.random() * 2 - 1;
+        b0 = 0.99886 * b0 + white * 0.0555179;
+        b1 = 0.99332 * b1 + white * 0.0750759;
+        b2 = 0.96900 * b2 + white * 0.1538520;
+        b3 = 0.86650 * b3 + white * 0.3104856;
+        b4 = 0.55000 * b4 + white * 0.5329522;
+        b5 = -0.7616 * b5 - white * 0.0168980;
+        var pink = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362;
+        b6 = white * 0.115926;
+        data[i] = pink * 0.11;
+      }
+    } else {
+      // white noise (also used as source before filtering when type is 'white')
+      for (var j = 0; j < bufferSize; j++) {
+        data[j] = Math.random() * 2 - 1;
+      }
+    }
+    return buffer;
+  }
+
+  function createReverbImpulse(ctx, durationSeconds, decay) {
+    var length = Math.floor(ctx.sampleRate * durationSeconds);
+    var impulse = ctx.createBuffer(2, length, ctx.sampleRate);
+    for (var ch = 0; ch < 2; ch++) {
+      var data = impulse.getChannelData(ch);
+      for (var i = 0; i < length; i++) {
+        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, decay);
+      }
+    }
+    return impulse;
+  }
+
+  // ---- Build & start the audio graph ----
+  // Returns true on success, false if Web Audio isn't available or
+  // construction failed for some other reason (caller should not flip
+  // running-state in that case).
+  function startAudio() {
+    var AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) {
+      el.timerStatus.textContent = 'Din webbläsare saknar stöd för Web Audio.';
+      return false;
+    }
+
+    var ctx;
+    try {
+      ctx = new AudioCtx();
+    } catch (e) {
+      el.timerStatus.textContent = 'Kunde inte starta ljudet: ' + e.message;
+      return false;
+    }
+
+    var masterGain = ctx.createGain();
+    masterGain.gain.setValueAtTime(0, ctx.currentTime);
+    masterGain.gain.linearRampToValueAtTime(state.masterVol, ctx.currentTime + 1.2);
+
+    // Safety limiter: several signal paths (tone, noise, reverb send) sum
+    // into masterGain, so with everything maxed out the combined level can
+    // exceed 0 dBFS. This won't sound like a "limiter" in a mastering sense,
+    // but it prevents nasty digital clipping if someone cranks every slider.
+    var limiter = ctx.createDynamicsCompressor();
+    limiter.threshold.value = -6;
+    limiter.knee.value = 0;
+    limiter.ratio.value = 20;
+    limiter.attack.value = 0.003;
+    limiter.release.value = 0.25;
+    masterGain.connect(limiter);
+    limiter.connect(ctx.destination);
+
+    var dryBus = ctx.createGain();
+    dryBus.gain.value = 1;
+    dryBus.connect(masterGain);
+
+    var convolver = ctx.createConvolver();
+    convolver.buffer = createReverbImpulse(ctx, 2.5, 2.2);
+
+    var wetBus = ctx.createGain();
+    wetBus.gain.value = state.reverb; // 0..~1
+    convolver.connect(wetBus);
+    wetBus.connect(masterGain);
+
+    // Tone: two oscillators panned hard left/right
+    var halfBeat = state.beat / 2;
+    var oscL = ctx.createOscillator();
+    oscL.type = 'sine';
+    oscL.frequency.value = state.carrier - halfBeat;
+
+    var oscR = ctx.createOscillator();
+    oscR.type = 'sine';
+    oscR.frequency.value = state.carrier + halfBeat;
+
+    var panL = ctx.createStereoPanner();
+    panL.pan.value = -1;
+    var panR = ctx.createStereoPanner();
+    panR.pan.value = 1;
+
+    var toneGain = ctx.createGain();
+    toneGain.gain.value = state.toneVol;
+
+    oscL.connect(panL).connect(toneGain);
+    oscR.connect(panR).connect(toneGain);
+    toneGain.connect(dryBus);
+    toneGain.connect(convolver);
+
+    oscL.start();
+    oscR.start();
+
+    // Noise (optional)
+    var noiseSource = null, hpFilter = null, lpFilter = null, noiseGain = null, fx = null;
+    if (state.noiseType !== 'none') {
+      noiseSource = ctx.createBufferSource();
+      noiseSource.buffer = createNoiseBuffer(ctx, state.noiseType, 4);
+      noiseSource.loop = true;
+
+      hpFilter = ctx.createBiquadFilter();
+      hpFilter.type = 'highpass';
+      hpFilter.frequency.value = effectiveHp();
+
+      lpFilter = ctx.createBiquadFilter();
+      lpFilter.type = 'lowpass';
+      lpFilter.frequency.value = effectiveLp();
+
+      noiseGain = ctx.createGain();
+      noiseGain.gain.value = state.noiseVol;
+
+      fx = buildNoiseEffect(ctx);
+
+      noiseSource.connect(hpFilter).connect(lpFilter);
+      lpFilter.connect(fx.dryGain);
+      lpFilter.connect(fx.delayNode);
+      fx.effectOut.connect(noiseGain);
+      noiseGain.connect(dryBus);
+      noiseGain.connect(convolver);
+
+      noiseSource.start();
+    }
+
+    audio = {
+      ctx: ctx,
+      oscL: oscL,
+      oscR: oscR,
+      toneGain: toneGain,
+      noiseSource: noiseSource,
+      hpFilter: hpFilter,
+      lpFilter: lpFilter,
+      noiseGain: noiseGain,
+      effectDelay: fx ? fx.delayNode : null,
+      effectLfo: fx ? fx.lfo : null,
+      effectLfoDepthGain: fx ? fx.lfoDepthGain : null,
+      effectFeedbackGain: fx ? fx.feedbackGain : null,
+      effectWetGain: fx ? fx.wetGain : null,
+      dryBus: dryBus,
+      wetBus: wetBus,
+      convolver: convolver,
+      masterGain: masterGain
+    };
+    return true;
+  }
+
+  // Builds the modulated-delay stage (shared structure for chorus/flanger)
+  // used on the noise chain. Caller is responsible for connecting its input
+  // (dryGain + delayNode) and consuming its output (effectOut).
+  function buildNoiseEffect(ctx) {
+    var dryGain = ctx.createGain();
+    dryGain.gain.value = 1;
+
+    var delayNode = ctx.createDelay(1.0);
+    delayNode.delayTime.value = effectBaseDelaySec();
+
+    var lfo = ctx.createOscillator();
+    lfo.type = 'sine';
+    lfo.frequency.value = state.effectRate;
+
+    var lfoDepthGain = ctx.createGain();
+    lfoDepthGain.gain.value = state.effectDepth * effectMaxDepthSec();
+    lfo.connect(lfoDepthGain).connect(delayNode.delayTime);
+    lfo.start();
+
+    var feedbackGain = ctx.createGain();
+    feedbackGain.gain.value = effectiveFeedback();
+    delayNode.connect(feedbackGain).connect(delayNode);
+
+    var wetGain = ctx.createGain();
+    wetGain.gain.value = effectiveWetAmount();
+    delayNode.connect(wetGain);
+
+    var effectOut = ctx.createGain();
+    effectOut.gain.value = 1;
+    dryGain.connect(effectOut);
+    wetGain.connect(effectOut);
+
+    return {
+      dryGain: dryGain,
+      delayNode: delayNode,
+      lfo: lfo,
+      lfoDepthGain: lfoDepthGain,
+      feedbackGain: feedbackGain,
+      wetGain: wetGain,
+      effectOut: effectOut
+    };
+  }
+
+  function stopAudio(immediate) {
+    if (!audio) return;
+    var targetAudio = audio; // local reference — protects against a later
+                              // startAudio() reassigning the shared `audio`
+                              // variable before this cleanup fires
+    var ctx = targetAudio.ctx;
+
+    function cleanup() {
+      try { targetAudio.oscL.stop(); } catch (e) {}
+      try { targetAudio.oscR.stop(); } catch (e) {}
+      if (targetAudio.noiseSource) {
+        try { targetAudio.noiseSource.stop(); } catch (e) {}
+      }
+      if (targetAudio.effectLfo) {
+        try { targetAudio.effectLfo.stop(); } catch (e) {}
+      }
+      try { ctx.close(); } catch (e) {}
+      // Only clear the shared reference if it still points at this exact
+      // graph — a newer session may already have replaced it.
+      if (audio === targetAudio) audio = null;
+    }
+
+    if (immediate) {
+      cleanup();
+    } else {
+      var now = ctx.currentTime;
+      targetAudio.masterGain.gain.cancelScheduledValues(now);
+      targetAudio.masterGain.gain.setValueAtTime(targetAudio.masterGain.gain.value, now);
+      targetAudio.masterGain.gain.linearRampToValueAtTime(0, now + 1.5);
+      cleanupTimeoutId = setTimeout(cleanup, 1600);
+    }
+  }
+
+  // ---- Live parameter updates while running ----
+  function applyLiveParams() {
+    if (!audio) return;
+    var ctx = audio.ctx;
+    var now = ctx.currentTime;
+    var halfBeat = state.beat / 2;
+
+    audio.oscL.frequency.setTargetAtTime(state.carrier - halfBeat, now, 0.05);
+    audio.oscR.frequency.setTargetAtTime(state.carrier + halfBeat, now, 0.05);
+    audio.toneGain.gain.setTargetAtTime(state.toneVol, now, 0.05);
+    audio.wetBus.gain.setTargetAtTime(state.reverb, now, 0.05);
+    audio.masterGain.gain.setTargetAtTime(state.masterVol, now, 0.05);
+
+    if (audio.hpFilter) audio.hpFilter.frequency.setTargetAtTime(effectiveHp(), now, 0.05);
+    if (audio.lpFilter) audio.lpFilter.frequency.setTargetAtTime(effectiveLp(), now, 0.05);
+    if (audio.noiseGain) audio.noiseGain.gain.setTargetAtTime(state.noiseVol, now, 0.05);
+
+    if (audio.effectDelay) {
+      audio.effectDelay.delayTime.setTargetAtTime(effectBaseDelaySec(), now, 0.05);
+      audio.effectLfoDepthGain.gain.setTargetAtTime(state.effectDepth * effectMaxDepthSec(), now, 0.05);
+      audio.effectLfo.frequency.setTargetAtTime(state.effectRate, now, 0.05);
+      audio.effectFeedbackGain.gain.setTargetAtTime(effectiveFeedback(), now, 0.05);
+      audio.effectWetGain.gain.setTargetAtTime(effectiveWetAmount(), now, 0.05);
+    }
+  }
+
+  // Changing noise type while running requires rebuilding the noise chain only
+  function rebuildNoiseChain() {
+    if (!audio) return;
+    var ctx = audio.ctx;
+
+    if (audio.noiseSource) {
+      try { audio.noiseSource.stop(); } catch (e) {}
+      try { if (audio.effectLfo) audio.effectLfo.stop(); } catch (e) {}
+      audio.noiseSource.disconnect();
+      if (audio.hpFilter) audio.hpFilter.disconnect();
+      if (audio.lpFilter) audio.lpFilter.disconnect();
+      if (audio.noiseGain) audio.noiseGain.disconnect();
+      if (audio.effectDelay) audio.effectDelay.disconnect();
+      if (audio.effectLfoDepthGain) audio.effectLfoDepthGain.disconnect();
+      if (audio.effectFeedbackGain) audio.effectFeedbackGain.disconnect();
+      if (audio.effectWetGain) audio.effectWetGain.disconnect();
+      audio.noiseSource = null;
+      audio.hpFilter = null;
+      audio.lpFilter = null;
+      audio.noiseGain = null;
+      audio.effectDelay = null;
+      audio.effectLfo = null;
+      audio.effectLfoDepthGain = null;
+      audio.effectFeedbackGain = null;
+      audio.effectWetGain = null;
+    }
+
+    if (state.noiseType !== 'none') {
+      var noiseSource = ctx.createBufferSource();
+      noiseSource.buffer = createNoiseBuffer(ctx, state.noiseType, 4);
+      noiseSource.loop = true;
+
+      var hpFilter = ctx.createBiquadFilter();
+      hpFilter.type = 'highpass';
+      hpFilter.frequency.value = effectiveHp();
+
+      var lpFilter = ctx.createBiquadFilter();
+      lpFilter.type = 'lowpass';
+      lpFilter.frequency.value = effectiveLp();
+
+      var noiseGain = ctx.createGain();
+      noiseGain.gain.value = state.noiseVol;
+
+      var fx = buildNoiseEffect(ctx);
+
+      noiseSource.connect(hpFilter).connect(lpFilter);
+      lpFilter.connect(fx.dryGain);
+      lpFilter.connect(fx.delayNode);
+      fx.effectOut.connect(noiseGain);
+      noiseGain.connect(audio.dryBus);
+      noiseGain.connect(audio.convolver);
+      noiseSource.start();
+
+      audio.noiseSource = noiseSource;
+      audio.hpFilter = hpFilter;
+      audio.lpFilter = lpFilter;
+      audio.noiseGain = noiseGain;
+      audio.effectDelay = fx.delayNode;
+      audio.effectLfo = fx.lfo;
+      audio.effectLfoDepthGain = fx.lfoDepthGain;
+      audio.effectFeedbackGain = fx.feedbackGain;
+      audio.effectWetGain = fx.wetGain;
+    }
+  }
+
+  // ---- Timer / session status ----
+  function clearTimers() {
+    if (fadeTimeoutId) { clearTimeout(fadeTimeoutId); fadeTimeoutId = null; }
+    if (stopTimeoutId) { clearTimeout(stopTimeoutId); stopTimeoutId = null; }
+    if (statusIntervalId) { clearInterval(statusIntervalId); statusIntervalId = null; }
+    sessionEndTime = null;
+  }
+
+  function scheduleTimer() {
+    if (state.timerMins <= 0) {
+      el.timerStatus.textContent = 'Spelar — ingen timer';
+      return;
+    }
+    var totalMs = state.timerMins * 60 * 1000;
+    sessionEndTime = Date.now() + totalMs;
+
+    fadeTimeoutId = setTimeout(function () {
+      stopAudio(false);
+    }, Math.max(totalMs - 1500, 0));
+
+    stopTimeoutId = setTimeout(function () {
+      finishSession();
+    }, totalMs + 200);
+
+    statusIntervalId = setInterval(function () {
+      var remaining = Math.max(0, Math.round((sessionEndTime - Date.now()) / 1000));
+      el.timerStatus.textContent = 'Återstår ' + formatTime(remaining);
+      if (remaining <= 0) {
+        clearInterval(statusIntervalId);
+        statusIntervalId = null;
+      }
+    }, 500);
+  }
+
+  function finishSession() {
+    state.running = false;
+    el.startBtn.textContent = 'Starta';
+    el.startBtn.classList.remove('running');
+    el.timerStatus.textContent = 'Klar';
+    clearTimers();
+  }
+
+  // ---- Start / stop toggle ----
+  function handleStartStop() {
+    if (!state.running) {
+      var ok = startAudio();
+      if (!ok) return; // error message already shown in timerStatus
+      state.running = true;
+      el.startBtn.textContent = 'Stoppa';
+      el.startBtn.classList.add('running');
+      clearTimers();
+      scheduleTimer();
+    } else {
+      stopAudio(false);
+      state.running = false;
+      el.startBtn.textContent = 'Starta';
+      el.startBtn.classList.remove('running');
+      el.timerStatus.textContent = '';
+      clearTimers();
+    }
+  }
+
+  // ---- Wire up controls ----
+  el.btnModeSimple.addEventListener('click', function () {
+    state.mode = 'simple';
+    el.btnModeSimple.classList.add('active');
+    el.btnModeSimple.setAttribute('aria-pressed', 'true');
+    el.btnModeAdvanced.classList.remove('active');
+    el.btnModeAdvanced.setAttribute('aria-pressed', 'false');
+    el.panelSimple.classList.remove('panel-hidden');
+    el.panelAdvanced.classList.add('panel-hidden');
+    applyLiveParams();
+  });
+
+  el.btnModeAdvanced.addEventListener('click', function () {
+    state.mode = 'advanced';
+    el.btnModeAdvanced.classList.add('active');
+    el.btnModeAdvanced.setAttribute('aria-pressed', 'true');
+    el.btnModeSimple.classList.remove('active');
+    el.btnModeSimple.setAttribute('aria-pressed', 'false');
+    el.panelAdvanced.classList.remove('panel-hidden');
+    el.panelSimple.classList.add('panel-hidden');
+    applyLiveParams();
+  });
+
+  el.bandRow.addEventListener('click', function (evt) {
+    var btn = evt.target.closest('.seg-btn');
+    if (!btn) return;
+    var band = btn.getAttribute('data-band');
+    var preset = BAND_PRESETS[band];
+    state.band = band;
+    state.beat = preset.beat;
+    state.carrier = preset.carrier;
+    setActiveSeg(el.bandRow, 'data-band', band);
+    el.beatSlider.value = state.beat;
+    el.carrierSlider.value = state.carrier;
+    el.beatVal.textContent = state.beat.toFixed(1);
+    el.carrierVal.textContent = Math.round(state.carrier);
+    updateHero();
+    applyLiveParams();
+  });
+
+  function handleNoiseClick(row) {
+    return function (evt) {
+      var btn = evt.target.closest('.seg-btn');
+      if (!btn) return;
+      var noiseType = btn.getAttribute('data-noise');
+      state.noiseType = noiseType;
+      setActiveSeg(el.noiseRowSimple, 'data-noise', noiseType);
+      setActiveSeg(el.noiseRowAdvanced, 'data-noise', noiseType);
+      rebuildNoiseChain();
+    };
+  }
+  el.noiseRowSimple.addEventListener('click', handleNoiseClick(el.noiseRowSimple));
+  el.noiseRowAdvanced.addEventListener('click', handleNoiseClick(el.noiseRowAdvanced));
+
+  el.carrierSlider.addEventListener('input', function () {
+    state.carrier = parseFloat(el.carrierSlider.value);
+    el.carrierVal.textContent = Math.round(state.carrier);
+    updateHero();
+    applyLiveParams();
+  });
+
+  el.beatSlider.addEventListener('input', function () {
+    state.beat = parseFloat(el.beatSlider.value);
+    el.beatVal.textContent = state.beat.toFixed(1);
+    updateHero();
+    applyLiveParams();
+  });
+
+  el.effectRow.addEventListener('click', function (evt) {
+    var btn = evt.target.closest('.seg-btn');
+    if (!btn) return;
+    var type = btn.getAttribute('data-effect');
+    state.effectType = type;
+    setActiveSeg(el.effectRow, 'data-effect', type);
+    if (type === 'none') {
+      el.effectDetails.classList.add('panel-hidden');
+    } else {
+      el.effectDetails.classList.remove('panel-hidden');
+    }
+    applyLiveParams();
+  });
+
+  el.effectRateSlider.addEventListener('input', function () {
+    state.effectRate = parseFloat(el.effectRateSlider.value);
+    el.effectRateVal.textContent = state.effectRate.toFixed(2);
+    applyLiveParams();
+  });
+
+  el.effectDepthSlider.addEventListener('input', function () {
+    state.effectDepth = parseFloat(el.effectDepthSlider.value) / 100;
+    el.effectDepthVal.textContent = el.effectDepthSlider.value;
+    applyLiveParams();
+  });
+
+  el.effectFeedbackSlider.addEventListener('input', function () {
+    state.effectFeedback = parseFloat(el.effectFeedbackSlider.value) / 100;
+    el.effectFeedbackVal.textContent = el.effectFeedbackSlider.value;
+    applyLiveParams();
+  });
+
+  el.effectAmountSlider.addEventListener('input', function () {
+    state.effectAmount = parseFloat(el.effectAmountSlider.value) / 100;
+    el.effectAmountVal.textContent = el.effectAmountSlider.value;
+    applyLiveParams();
+  });
+
+  el.hpSlider.addEventListener('input', function () {
+    state.hp = parseFloat(el.hpSlider.value);
+    // Keep at least a 200 Hz gap so the two filters can never fully cancel
+    // the signal out (e.g. HP 2000 Hz + LP 200 Hz would pass almost nothing).
+    if (state.hp > state.lp - 200) {
+      state.lp = Math.min(20000, state.hp + 200);
+      el.lpSlider.value = state.lp;
+      el.lpVal.textContent = Math.round(state.lp);
+    }
+    el.hpVal.textContent = Math.round(state.hp);
+    applyLiveParams();
+  });
+
+  el.lpSlider.addEventListener('input', function () {
+    state.lp = parseFloat(el.lpSlider.value);
+    if (state.lp < state.hp + 200) {
+      state.hp = Math.max(20, state.lp - 200);
+      el.hpSlider.value = state.hp;
+      el.hpVal.textContent = Math.round(state.hp);
+    }
+    el.lpVal.textContent = Math.round(state.lp);
+    applyLiveParams();
+  });
+
+  el.reverbSlider.addEventListener('input', function () {
+    state.reverb = parseFloat(el.reverbSlider.value) / 100 * 0.7; // cap wet send at 0.7
+    el.reverbVal.textContent = el.reverbSlider.value;
+    applyLiveParams();
+  });
+
+  el.toneVolSlider.addEventListener('input', function () {
+    state.toneVol = parseFloat(el.toneVolSlider.value) / 100;
+    el.toneVolVal.textContent = el.toneVolSlider.value;
+    applyLiveParams();
+  });
+
+  el.noiseVolSlider.addEventListener('input', function () {
+    // Noise felt too loud across the range, so the slider's 0-100% now maps
+    // to 0-50% of the previous gain — old "50%" is the new "100%".
+    state.noiseVol = (parseFloat(el.noiseVolSlider.value) / 100) * 0.5;
+    el.noiseVolVal.textContent = el.noiseVolSlider.value;
+    applyLiveParams();
+  });
+
+  el.masterVolSlider.addEventListener('input', function () {
+    state.masterVol = parseFloat(el.masterVolSlider.value) / 100;
+    el.masterVolVal.textContent = el.masterVolSlider.value;
+    applyLiveParams();
+  });
+
+  el.timerRow.addEventListener('click', function (evt) {
+    var btn = evt.target.closest('.seg-btn');
+    if (!btn) return;
+    var mins = parseInt(btn.getAttribute('data-mins'), 10);
+    state.timerMins = mins;
+    setActiveSeg(el.timerRow, 'data-mins', mins);
+    if (state.running) {
+      clearTimers();
+      scheduleTimer();
+    }
+  });
+
+  el.startBtn.addEventListener('click', handleStartStop);
+
+  // Stop cleanly if the tab is closed/navigated away
+  window.addEventListener('beforeunload', function () {
+    if (audio) stopAudio(true);
+  });
+
+  // ---- Init ----
+  updateHero();
+})();
+</script>
+</body>
+</html>
