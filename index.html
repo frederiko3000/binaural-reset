@@ -261,27 +261,18 @@
   }
 
   /* Segmented button rows (bands, noise type, timer) */
+  /* Grid instead of flex-wrap: auto-fill keeps a consistent column
+     structure across every row, so a sparse last row (e.g. one leftover
+     button) just leaves empty space instead of stretching to fill the
+     whole row width — the bug that made a lone wrapped button balloon to
+     full width on narrow/portrait screens. */
   .seg-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  /* Fixed 3-column grid so a leftover item (e.g. the 6th timer option)
-     never stretches to fill a whole row on its own, unlike flex-wrap. */
-  .seg-row-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
     gap: 8px;
-  }
-
-  .seg-row-grid .seg-btn {
-    min-width: 0;
   }
 
   .seg-btn {
-    flex: 1 1 auto;
-    min-width: 58px;
     background: var(--surface);
     border: 1px solid var(--line);
     color: var(--text-muted);
@@ -407,7 +398,12 @@
 </head>
 <body>
 <main>
-  <div class="wordmark">[ binaural<span>.</span>reset ]</div>
+  <!-- Hidden audio element used only to make iOS/Safari-based browsers treat
+       this as real media playback so it can continue with the screen locked.
+       Its source is a MediaStream fed directly from the Web Audio graph. -->
+  <audio id="bgAudioKeepAlive" style="display:none" aria-hidden="true"></audio>
+
+  <div class="wordmark">[ binaural<span>.</span>reset ] Version 0.1.5</div>
 
   <div class="hero">
     <div><span class="beat-value" id="heroBeat">6.0</span><span class="beat-unit">Hz</span></div>
@@ -533,7 +529,7 @@
 
   <div class="field">
     <div class="field-label"><span>Timer</span></div>
-    <div class="seg-row seg-row-grid" id="timerRow">
+    <div class="seg-row" id="timerRow">
       <button class="seg-btn active" aria-pressed="true" data-mins="0">Av</button>
       <button class="seg-btn" aria-pressed="false" data-mins="5">5 min</button>
       <button class="seg-btn" aria-pressed="false" data-mins="10">10 min</button>
@@ -671,7 +667,8 @@
     timerRow: document.getElementById('timerRow'),
     startBtn: document.getElementById('startBtn'),
     startBtnLabel: document.getElementById('startBtnLabel'),
-    timerStatus: document.getElementById('timerStatus')
+    timerStatus: document.getElementById('timerStatus'),
+    bgAudio: document.getElementById('bgAudioKeepAlive')
   };
 
   // ---- Helpers ----
@@ -815,6 +812,36 @@
     masterGain.connect(limiter);
     limiter.connect(ctx.destination);
 
+    // iOS (and Brave iOS, which is WebKit under the hood) suspends plain
+    // Web Audio graphs in the background/when the screen locks. Routing a
+    // copy of the signal into a real <audio> element via a MediaStream
+    // makes the browser treat this as genuine media playback, which is
+    // what's allowed to keep running in that situation. Best-effort: still
+    // subject to whatever the OS/browser decides, not a guarantee.
+    var bgStreamDest = null;
+    try {
+      bgStreamDest = ctx.createMediaStreamDestination();
+      limiter.connect(bgStreamDest);
+      if (el.bgAudio) {
+        el.bgAudio.srcObject = bgStreamDest.stream;
+        el.bgAudio.play().catch(function () {});
+      }
+    } catch (e) {
+      bgStreamDest = null; // not fatal — normal foreground playback still works
+    }
+
+    if ('mediaSession' in navigator) {
+      try {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: 'binaural.reset',
+          artist: bandLabelForBeat(state.beat) + ' \u00b7 ' + state.beat.toFixed(1) + ' Hz'
+        });
+        navigator.mediaSession.playbackState = 'playing';
+        navigator.mediaSession.setActionHandler('pause', function () { handleStartStop(); });
+        navigator.mediaSession.setActionHandler('stop', function () { handleStartStop(); });
+      } catch (e) {}
+    }
+
     var dryBus = ctx.createGain();
     dryBus.gain.value = 1;
     dryBus.connect(masterGain);
@@ -903,7 +930,8 @@
       convolver: convolver,
       masterGain: masterGain,
       reverbToneConnected: false,
-      reverbNoiseConnected: false
+      reverbNoiseConnected: false,
+      mediaStreamDest: bgStreamDest
     };
     updateReverbRouting(); // convolver only receives signal once reverb is actually turned up
     return true;
@@ -994,6 +1022,12 @@
       }
       if (targetAudio.effectLfo) {
         try { targetAudio.effectLfo.stop(); } catch (e) {}
+      }
+      if (el.bgAudio) {
+        try { el.bgAudio.pause(); el.bgAudio.srcObject = null; } catch (e) {}
+      }
+      if ('mediaSession' in navigator) {
+        try { navigator.mediaSession.playbackState = 'none'; } catch (e) {}
       }
       try { ctx.close(); } catch (e) {}
       // Only clear the shared reference if it still points at this exact
@@ -1147,12 +1181,45 @@
     }, 500);
   }
 
+  // ---- Screen Wake Lock (keep the screen on while a session is running) ----
+  var wakeLock = null;
+
+  function requestWakeLock() {
+    if (!('wakeLock' in navigator)) return; // unsupported — silently skip, not fatal
+    navigator.wakeLock.request('screen').then(function (lock) {
+      wakeLock = lock;
+      wakeLock.addEventListener('release', function () { wakeLock = null; });
+    }).catch(function () {
+      // Can fail if the tab isn't visible/focused at request time — not fatal,
+      // the visibilitychange handler below will retry when it can.
+    });
+  }
+
+  function releaseWakeLock() {
+    if (wakeLock) {
+      wakeLock.release().catch(function () {});
+      wakeLock = null;
+    }
+  }
+
+  // The Wake Lock spec auto-releases when the document is hidden, and a
+  // backgrounded/locked iOS Safari can also suspend the AudioContext itself.
+  // Re-acquire/resume both once the page is visible again, if still running.
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState !== 'visible' || !state.running) return;
+    if (!wakeLock) requestWakeLock();
+    if (audio && audio.ctx.state === 'suspended') {
+      audio.ctx.resume().catch(function () {});
+    }
+  });
+
   function finishSession() {
     state.running = false;
     el.startBtnLabel.textContent = 'STARTA';
     el.startBtn.classList.remove('running');
     el.timerStatus.textContent = 'Klar';
     clearTimers();
+    releaseWakeLock();
   }
 
   // ---- Start / stop toggle ----
@@ -1165,6 +1232,7 @@
       el.startBtn.classList.add('running');
       clearTimers();
       scheduleTimer();
+      requestWakeLock();
     } else {
       stopAudio(false);
       state.running = false;
@@ -1172,6 +1240,7 @@
       el.startBtn.classList.remove('running');
       el.timerStatus.textContent = '';
       clearTimers();
+      releaseWakeLock();
     }
   }
 
@@ -1369,6 +1438,7 @@
   // Stop cleanly if the tab is closed/navigated away
   window.addEventListener('beforeunload', function () {
     if (audio) stopAudio(true);
+    releaseWakeLock();
   });
 
   // ---- Init ----
