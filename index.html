@@ -27,7 +27,6 @@
     --surface: #1A1B1F;
     --surface-2: #212226;
     --line: #34363C;
-    --grid: rgba(255, 255, 255, 0.035);
     --text: #E8E6DE;
     --text-muted: #7A7D85;
     --accent: #FFB020;
@@ -53,11 +52,6 @@
     justify-content: center;
     padding: 32px 18px 60px;
     background-color: var(--bg);
-    background-image:
-      linear-gradient(var(--grid) 1px, transparent 1px),
-      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
-    background-size: 28px 28px;
-    background-attachment: fixed;
   }
 
   main {
@@ -81,7 +75,11 @@
     text-align: center;
     padding: 24px 16px;
     margin-bottom: 24px;
-    background: #0A0A0B;
+    background-color: #0A0A0B;
+    background-image:
+      linear-gradient(rgba(255, 176, 32, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 176, 32, 0.05) 1px, transparent 1px);
+    background-size: 14px 14px;
     border: 1px solid var(--line);
     border-radius: 4px;
   }
@@ -219,6 +217,18 @@
     gap: 8px;
   }
 
+  /* Fixed 3-column grid so a leftover item (e.g. the 6th timer option)
+     never stretches to fill a whole row on its own, unlike flex-wrap. */
+  .seg-row-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+
+  .seg-row-grid .seg-btn {
+    min-width: 0;
+  }
+
   .seg-btn {
     flex: 1 1 auto;
     min-width: 58px;
@@ -249,21 +259,8 @@
 
   .divider {
     border: none;
-    height: 1px;
-    background: var(--line);
+    border-top: 1px solid var(--line);
     margin: 24px 0;
-    position: relative;
-  }
-
-  .divider::after {
-    content: '';
-    position: absolute;
-    top: -1px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 24px;
-    height: 3px;
-    background: var(--accent);
   }
 
   /* Start button */
@@ -486,7 +483,7 @@
 
   <div class="field">
     <div class="field-label"><span>Timer</span></div>
-    <div class="seg-row" id="timerRow">
+    <div class="seg-row seg-row-grid" id="timerRow">
       <button class="seg-btn active" aria-pressed="true" data-mins="0">Av</button>
       <button class="seg-btn" aria-pressed="false" data-mins="5">5 min</button>
       <button class="seg-btn" aria-pressed="false" data-mins="10">10 min</button>
